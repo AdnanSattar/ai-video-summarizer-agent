@@ -11,41 +11,75 @@ from phi.model.google import Gemini
 from phi.tools.duckduckgo import DuckDuckGo
 from dotenv import load_dotenv
 
-# Load API Key from .env file
-load_dotenv()
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if API_KEY:
-    genai.configure(api_key=API_KEY)
-else:
-    st.warning("No valid GOOGLE_API_KEY found. Please add it to your .env.")
+########################################
+# Streamlit Sidebar for Key Selection
+########################################
+st.sidebar.title("API Key Configuration")
 
-# Streamlit page configuration
-st.set_page_config(
-    page_title="AI Video Summarizer (Phidata/Gemini)",
-    page_icon="🎥",
-    layout="wide"
+# User selects whether to use their own key or .env
+key_source = st.sidebar.radio(
+    "Choose API Key Source:",
+    options=["Use my own key", "Load key from .env"],
+    index=0
 )
 
-st.title("Phidata x Gemini Video Summarizer")
-st.write(
-    """
-    Leverage Google Gemini 2.0 Flash Exp and Phidata's AI Agent to analyze video content, 
-    answer queries, and produce meaningful insights.
-    """
-)
+# Initialize API_KEY variable
+API_KEY = None
 
-# Initialize AI Agent
-@st.cache_resource
-def create_ai_agent() -> Agent:
-    return Agent(
-        name="Phidata Video Analyzer",
-        model=Gemini(id="gemini-2.0-flash-exp"),
-        tools=[DuckDuckGo()],
-        markdown=True
+# If user chooses to provide their own key
+if key_source == "Use my own key":
+    user_provided_key = st.sidebar.text_input(
+        "Enter your GOOGLE_API_KEY:",
+        value="",
+        help="Provide your Google API Key for accessing Gemini services."
     )
+    API_KEY = user_provided_key.strip() if user_provided_key.strip() else None
 
-video_analyzer = create_ai_agent()
+# If user chooses to load from .env
+elif key_source == "Load key from .env":
+    load_dotenv()  # Load .env file
+    API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Validate API Key
+if not API_KEY:
+    st.sidebar.error("No valid API key found! Please provide a key or add it to the .env file.")
+    st.stop()
+
+# Debugging Info (Optional)
+st.sidebar.text(f"DEBUG: Using API Key: {API_KEY[:4]}...")  # Show the first 4 characters only
+
+########################################
+# Configure Google Generative AI
+########################################
+try:
+    genai.configure(api_key=API_KEY)
+    st.sidebar.success("API Key successfully configured!")
+except Exception as e:
+    st.sidebar.error(f"Failed to configure API key: {e}")
+    st.stop()
+
+########################################
+# Initialize AI Agent
+########################################
+@st.cache_resource
+def create_ai_agent(api_key):
+    try:
+        # Pass the dynamically configured API key
+        genai.configure(api_key=api_key)
+        return Agent(
+            name="Phidata Video Analyzer",
+            model=Gemini(id="gemini-2.0-flash-exp"),
+            tools=[DuckDuckGo()],
+            markdown=True
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize AI Agent: {e}")
+
+video_analyzer = create_ai_agent(API_KEY)
+
+########################################
+# Video Upload and Processing
+########################################
 def upload_and_process_video():
     """
     Handles video upload and returns the local path for processing.
@@ -70,11 +104,10 @@ def upload_and_process_video():
     st.video(local_video_path, format="video/mp4", start_time=0)
     return local_video_path
 
+########################################
+# Perform Video Analysis
+########################################
 def perform_video_analysis(local_video_path, query, summary_style):
-    """
-    Uploads the video, waits for processing, and performs AI analysis based on the query and summary style.
-    Returns the AI's response or raises an error if processing fails.
-    """
     try:
         with st.spinner("Uploading video to AI service..."):
             processed_file = upload_file(local_video_path)
@@ -82,7 +115,6 @@ def perform_video_analysis(local_video_path, query, summary_style):
                 time.sleep(1)
                 processed_file = get_file(processed_file.name)
 
-        # Prompt customization based on the selected summary style
         if summary_style == "Executive Summary":
             style_instruction = "Provide a concise, single-paragraph executive overview."
         elif summary_style == "Bullet Points":
@@ -105,6 +137,9 @@ def perform_video_analysis(local_video_path, query, summary_style):
     finally:
         Path(local_video_path).unlink(missing_ok=True)
 
+########################################
+# Main Streamlit App
+########################################
 def main():
     st.sidebar.title("Video Summarizer Options")
 
@@ -138,7 +173,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # Adjust text area height for better UI
+    # Optional: Adjust text area height
     st.markdown(
         """
         <style>
