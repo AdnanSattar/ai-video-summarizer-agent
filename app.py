@@ -19,7 +19,7 @@ st.sidebar.title("API Key Configuration")
 # User selects whether to use their own key or .env
 key_source = st.sidebar.radio(
     "Choose API Key Source:",
-    options=["Use my own key", "Load key from .env"],
+    options=["Load key from .env","Use my own key"],
     index=0
 )
 
@@ -46,7 +46,7 @@ if not API_KEY:
     st.stop()
 
 # Debugging Info (Optional)
-st.sidebar.text(f"DEBUG: Using API Key: {API_KEY[:4]}...")  # Show the first 4 characters only
+# st.sidebar.text(f"DEBUG: Using API Key: {API_KEY[:4]}...")  # Show the first 4 characters only
 
 ########################################
 # Configure Google Generative AI
